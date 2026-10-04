@@ -1,4 +1,5 @@
-from fastapi import FastAPI
+
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import joblib
 import numpy as np
@@ -6,89 +7,56 @@ import os
 
 app = FastAPI(title="Heart Disease Prediction API")
 
-# Allow the Next.js frontend to call this API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_credentials=True,
+    allow_origins=[
+        "http://localhost:3000",
+        "https://heart-flame-one.vercel.app",
+    ],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Project root
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MODEL_PATH = os.path.join(BASE_DIR, "model", "heart_model.pkl")
 
-# Model path
-MODEL_PATH = os.path.join(
-    BASE_DIR,
-    "model",
-    "heart_model.pkl"
-)
-
-# Load trained model
 model = joblib.load(MODEL_PATH)
 
-# Features must be in exactly this order
 FEATURES = [
-    "age",
-    "sex",
-    "cp",
-    "trestbps",
-    "chol",
-    "fbs",
-    "restecg",
-    "thalach",
-    "exang",
-    "oldpeak",
-    "slope",
-    "ca",
-    "thal"
+    "age", "sex", "cp", "trestbps", "chol", "fbs",
+    "restecg", "thalach", "exang", "oldpeak", "slope",
+    "ca", "thal"
 ]
-
 
 @app.get("/")
 def home():
-    return {
-        "message": "Heart Disease Prediction API is running"
-    }
+    return {"message": "Heart Disease Prediction API is running"}
 
-
+@app.post("/")
 @app.post("/predict")
 def predict(data: dict):
-
     try:
-        # Get values in the correct feature order
-        values = [
-            float(data[feature])
-            for feature in FEATURES
-        ]
-
-        # Convert to numpy array
+        values = [float(data[feature]) for feature in FEATURES]
         X = np.array([values])
 
-        # Prediction
-        prediction = int(
-            model.predict(X)[0]
-        )
-
-        # Probability
-        probability = float(
-            model.predict_proba(X)[0][1] * 100
-        )
-
-        if prediction == 1:
-            result = "Heart Disease Detected"
-        else:
-            result = "No Heart Disease Detected"
+        prediction = int(model.predict(X)[0])
+        probability = float(model.predict_proba(X)[0][1] * 100)
 
         return {
             "prediction": prediction,
-            "result": result,
+            "result": (
+                "Heart Disease Detected"
+                if prediction == 1
+                else "No Heart Disease Detected"
+            ),
             "probability": round(probability, 2)
         }
 
+    except KeyError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Missing feature: {e.args[0]}"
+        )
     except Exception as e:
-
-        return {
-            "error": str(e)
-        }
+        raise HTTPException(status_code=500, detail=str(e))
