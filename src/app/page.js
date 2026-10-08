@@ -169,7 +169,7 @@ export default function Home() {
       });
 
       const response = await fetch(
-        "/api/predict",
+        process.env.NEXT_PUBLIC_API_URL || "/api/predict",
         {
           method: "POST",
           headers: {
